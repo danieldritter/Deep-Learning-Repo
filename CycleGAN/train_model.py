@@ -41,9 +41,11 @@ def train():
     parser.add_argument("--batch_size", type=int,
                         help="size of batches to train on", default=1)
     parser.add_argument("--num_epochs", type=int,
-                        help="number of epochs to train for", default=200)
+                        help="number of epochs to train for", default=20)
     parser.add_argument("--lambda_weighting", type=int,
                         help="Weight to apply to cyclic consistency loss", default=10)
+    parser.add_argument(
+        "--show_progress", help="If passed, will store temp images generated from both generators after each training pass", action="store_true")
     args = parser.parse_args()
 
     # Defaults to using gpu if available
@@ -106,12 +108,17 @@ def train():
             identity_image = image_gen(image)
             identity_mask = mask_gen(mask)
 
+            # reshape probabilities for loss function
+            im_discrim_prob = torch.t(im_discrim_prob)
+            mask_discrim_prob = torch.t(mask_discrim_prob)
+            f_im_discrim_prob = torch.t(f_im_discrim_prob)
+            f_mask_discrim_prob = torch.t(f_mask_discrim_prob)
             # Get generator losses
             optimizer.zero_grad()
-            im_to_mask_gen_loss = torch.mean(
-                -(f_im_discrim_prob[0])**2 + (im_discrim_prob[0])**2)
-            mask_to_im_gen_loss = torch.mean(
-                -(f_mask_discrim_prob[0])**2 + mask_discrim_prob[0]**2)
+            im_to_mask_gen_loss = -torch.mean(
+                torch.log(1 - f_im_discrim_prob[0]) + torch.log(im_discrim_prob[0]))
+            mask_to_im_gen_loss = -torch.mean(
+                torch.log(1 - f_mask_discrim_prob[0]) + torch.log(mask_discrim_prob[0]))
             # Get cyclic losses
             cyclic_loss_im_to_mask = cyclic_loss(recov_image, image)
             cyclic_loss_mask_to_im = cyclic_loss(recov_mask, mask)
@@ -120,23 +127,42 @@ def train():
                 args.lambda_weighting * \
                 (cyclic_loss_im_to_mask + cyclic_loss_mask_to_im)
 
-            # Get discriminator losses
+            # # Get discriminator losses
             im_discrim_loss = torch.mean(
-                (1 - im_discrim_prob[0])**2 + (f_im_discrim_prob[0])**2)
+                torch.log(1 - im_discrim_prob[0]) + torch.log(f_im_discrim_prob[0]))
             mask_discrim_loss = torch.mean(
-                (1 - mask_discrim_prob[0])**2 + (f_mask_discrim_prob[0])**2)
+                torch.log(1 - mask_discrim_prob[0]) + torch.log(f_mask_discrim_prob[0]))
             discrim_loss = im_discrim_loss + mask_discrim_loss
 
             identity_loss = args.lambda_weighting * \
                 (cyclic_loss(identity_image, image) +
                  cyclic_loss(identity_mask, mask))
 
-            total_loss = gen_loss + discrim_loss + identity_loss
+            total_loss = gen_loss + identity_loss
             total_loss.backward()
             optimizer.step()
-            print(total_loss)
+            print("gen1_loss:", im_to_mask_gen_loss)
+            print("gen2_loss:", mask_to_im_gen_loss)
+            print("cyclic_loss_gen1", cyclic_loss_im_to_mask)
+            print("cyclic_loss_gen2", cyclic_loss_mask_to_im)
+            print("gen_loss", gen_loss)
+            print("dis1_loss", im_discrim_loss)
+            print("dis2_loss", mask_discrim_loss)
+            print("dis_loss", discrim_loss)
+            print("identity_loss", identity_loss)
+            print("total_loss", total_loss)
 
-        if epoch % 10 == 0 and args.show_images:
+            if args.show_progress:
+                # A Image
+                image = transforms.ToPILImage()(
+                    predicted_image.cpu().detach()[0, :, :, :])
+                image.save("./Images/temp_A.png")
+                # B Image
+                image = transforms.ToPILImage()(
+                    predicted_mask.cpu().detach()[0, :, :, :])
+                image.save("./Images/temp_B.png")
+
+        if args.show_images:
             image = transforms.ToPILImage()(
                 predicted_image.cpu().detach()[0, :, :, :])
             image.save("./Images/epoch_" + str(epoch) + ".png")

@@ -13,9 +13,9 @@ def __main__():
     parser.add_argument(
         "-direction", help="One of 'im2mask' or 'mask2im', determines which generator to pass input images through", default='im2mask')
     parser.add_argument(
-        '-image_directory', help="filepath to directory containing images to translate", default="./data/Tissue-images")
+        '-image_directory', help="filepath to directory containing images to translate", default="./data/datasets/cezanne2photo/testB")
     args = parser.parse_args()
-    checkpoint = torch.load(args.path_to_model)
+    checkpoint = torch.load(args.path_to_model, map_location="cpu")
     saved_model = model.Generator(3, 3)
     if args.direction == 'im2mask':
         saved_model.load_state_dict(checkpoint["mask_gen_model"])
@@ -23,7 +23,8 @@ def __main__():
         saved_model.load_state_dict(checkpoint["image_gen_model"])
     if not os.path.exists(args.image_directory + "/predictions"):
         os.makedirs(args.image_directory + "/predictions")
-    for file in os.listdir(args.image_directory):
+    print(os.listdir(args.image_directory))
+    for file in os.listdir(args.image_directory)[:1]:
         if not os.path.isdir(args.image_directory + "/" + file):
             im = transforms.Resize((450, 450))(
                 Image.open(args.image_directory + "/" + file))
