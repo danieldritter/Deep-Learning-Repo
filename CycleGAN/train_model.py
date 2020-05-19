@@ -1,7 +1,3 @@
-"""
-Model for a Generative Adversarial Network trained to generate medical images
-and their accompanying segmentation masks
-"""
 import image_processing
 import torch.nn as nn
 import model
@@ -12,32 +8,28 @@ import torch
 from PIL import Image
 import argparse
 
-"""
-TODO:
-Data augmentations(rotations, affines, everything you got that's reasonable)
-Documentation
-Increase size of generator
-retain graph issue
-loss_graphing
-"""
 
 
 def train():
+    """
+    Function to train CycleGAN. Various arguments below allow for saving checkpoints, temporary images,
+    changing batch size, epochs, cyclic loss weighting, etc.
+    """
 
     # Command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--learning_rate", type=float,
                         help="Learning rate to use for training", default=.0002)
     parser.add_argument(
-        "--show_images", help="shows generated image every 10 epochs", action="store_true")
+        "--show_images", help="shows a generated image after every epoch", action="store_true")
     parser.add_argument("--checkpoint_frequency", type=int,
                         help="If given, saves a copy of the weights every x epochs, where x is the integer passed in. Default is no checkpoints saved")
     parser.add_argument(
         "--prev_model", help="if given, will load in previous saved model from a .tar file. Argument should be path to .tar file to load")
     parser.add_argument(
-        "--path_to_A_images", help="path to folder containing nuclei images", default="./data/datasets/cezanne2photo/trainA")
+        "--path_to_A_images", help="path to folder containing A dataset images", default="./data/datasets/cezanne2photo/trainA")
     parser.add_argument(
-        "--path_to_B_images", help="path to folder containing nuclei masks", default="./data/datasets/cezanne2photo/trainB")
+        "--path_to_B_images", help="path to folder containing B dataset images", default="./data/datasets/cezanne2photo/trainB")
     parser.add_argument("--batch_size", type=int,
                         help="size of batches to train on", default=1)
     parser.add_argument("--num_epochs", type=int,
@@ -48,8 +40,8 @@ def train():
         "--show_progress", help="If passed, will store temp images generated from both generators after each training pass", action="store_true")
     args = parser.parse_args()
 
-    # Defaults to using gpu if available
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    # Can change this argument to use gpu if available
+    device = torch.device("cpu")
 
     # Creates datast and dataloader
     transform = transforms.Compose([transforms.ToTensor()])
@@ -62,7 +54,7 @@ def train():
     B_dataloader = utils.data.DataLoader(
         B_dataset, batch_size=args.batch_size, shuffle=True)
 
-    # Creates generators and discriminators
+    # Creates generators and discriminators(3s are for 3 color channels in input/output images)
     image_gen = model.Generator(3, 3)
     mask_gen = model.Generator(3, 3)
     image_disc = model.Discriminator(3)
@@ -75,6 +67,8 @@ def train():
     mask_disc.to(device)
 
     cyclic_loss = nn.L1Loss()
+
+    # For more fine-grained training, could partitition this into 4 optimizers with different learning rates
     optimizer = optim.Adam(list(image_gen.parameters()) + list(mask_gen.parameters()) + list(
         image_disc.parameters()) + list(mask_disc.parameters()), lr=args.learning_rate)
 
@@ -88,7 +82,6 @@ def train():
         mask_disc.load_state_dict(checkpoint['mask_disc_model'])
         optimizer.load_state_dict(checkpoint['optimizer_model'])
         prev_epoch = checkpoint['epoch']
-        # TODO: Use loss here after adding in loss graphing
 
     for epoch in range(prev_epoch, args.num_epochs):
         print("Epoch: ", epoch)

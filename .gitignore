@@ -1,3 +1,5 @@
 saved_models/
 data/
 checkpoints/
+Images/
+__pycache__/

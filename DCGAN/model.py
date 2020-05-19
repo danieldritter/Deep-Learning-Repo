@@ -85,18 +85,17 @@ def __main__():
     parser.add_argument("--learning_rate", type=float,
                         help="Learning Rate to use when training, float between [0,1)", default=.0002)
     parser.add_argument(
-        "--path_to_data", help="file path to folder containing card arts", default="D:/mtg_card_data")
+        "--path_to_data", help="file path to folder containing images", default="data")
     parser.add_argument("--num_epochs", type=int,
                         help="number of epochs to train for", default=100)
     parser.add_argument(
-        "--show_images", help="shows generated image every 10 epochs", action="store_true")
+        "--show_images", help="shows generated image after every epoch", action="store_true")
     args = parser.parse_args()
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
     transform = transforms.Compose(
         [transforms.Resize((80, 80)), transforms.ToTensor()])
-    dataset = datasets.ImageFolder(
-        'D:/data/celeba', transform=transform)
+    dataset = datasets.ImageFolder(args.path_to_data, transform=transform)
     dataloader = DataLoader(dataset, args.batch_size, shuffle=True)
     gen = Generator(100)
     dis = Discriminator(3)
@@ -114,11 +113,10 @@ def __main__():
             dis_optimizer.zero_grad()
             noise = torch.randn((args.batch_size, 100, 1, 1)).to(device)
             fake_batch = gen(noise)
+            # Gets probabilities on real and fake images, then calculates losses
             discrim_prob_real = dis(batch)
             discrim_prob_fake = dis(fake_batch)
             discrim_loss_real = -torch.sum(torch.log(discrim_prob_real[:, 0]))
-            print(discrim_prob_fake[:, 0])
-            print(discrim_prob_real[:, 0])
             discrim_loss_fake = -torch.sum(
                 torch.log(1 - discrim_prob_fake[:, 0]))
             discrim_loss = .5 * (discrim_loss_real + discrim_loss_fake)
@@ -126,6 +124,7 @@ def __main__():
             discrim_loss.backward()
             dis_optimizer.step()
             gen_optimizer.zero_grad()
+            # Generates another fake batch of images to update generator
             noise = torch.randn((args.batch_size, 100, 1, 1)).to(device)
             discrim_prob_fake = dis(gen(noise))
             gen_loss = -torch.sum(torch.log(discrim_prob_fake[:, 0]))
@@ -133,12 +132,13 @@ def __main__():
             gen_loss.backward()
             gen_optimizer.step()
 
-            if args.show_images:
-                image = transforms.ToPILImage()(
-                    fake_batch.cpu().detach()[0, :, :, :])
-                image.save("./Images/epoch_" + str(epoch) + ".png")
-                image = transforms.ToPILImage()(batch.cpu()[0, :, :, :])
-                image.save("./Images/real_epoch_" + str(epoch) + ".png")
+        # Saves images to a directory if command line argument is passed
+        if args.show_images:
+            image = transforms.ToPILImage()(
+                fake_batch.cpu().detach()[0, :, :, :])
+            image.save("./Images/epoch_" + str(epoch) + ".png")
+            image = transforms.ToPILImage()(batch.cpu()[0, :, :, :])
+            image.save("./Images/real_epoch_" + str(epoch) + ".png")
         gen_lr_scheduler.step()
 
 

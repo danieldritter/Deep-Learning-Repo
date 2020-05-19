@@ -7,6 +7,9 @@ from torchvision import transforms
 
 
 def __main__():
+    """
+    This script is to visualize the images output by the trained CycleGAN
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument("--path_to_model", help="Path to model checkpoint to load in for inference",
                         default="saved_models/demo_checkpoint.tar")
@@ -17,13 +20,19 @@ def __main__():
     args = parser.parse_args()
     checkpoint = torch.load(args.path_to_model, map_location="cpu")
     saved_model = model.Generator(3, 3)
+
+    # Loads the corresponding generator depending on which direction we are putting images through
     if args.direction == 'im2mask':
         saved_model.load_state_dict(checkpoint["mask_gen_model"])
     if args.direction == "mask2im":
         saved_model.load_state_dict(checkpoint["image_gen_model"])
+
+    # Makes a directory to store the output images in
     if not os.path.exists(args.image_directory + "/predictions"):
         os.makedirs(args.image_directory + "/predictions")
     print(os.listdir(args.image_directory))
+
+    # Loops through all the images, transforms them, puts them through the model, and then saves the output 
     for file in os.listdir(args.image_directory)[:1]:
         if not os.path.isdir(args.image_directory + "/" + file):
             im = transforms.Resize((450, 450))(

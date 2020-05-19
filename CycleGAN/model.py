@@ -43,6 +43,9 @@ class Discriminator(nn.Module):
         self.conv2_bn = nn.BatchNorm2d(128)
         self.conv3 = nn.Conv2d(128, 64, 4)
         self.conv3_bn = nn.BatchNorm2d(64)
+        # Magic number here is because all filter weights have to be connected
+        # to the final linear layer, so pytorch throws an error if this
+        # doesn't match up to the total number of parameters in all the previous filters
         self.fc1 = nn.Linear(3904576, 2)
 
     def forward(self, input_tensor):
